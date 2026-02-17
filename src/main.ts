@@ -9,7 +9,7 @@ async function bootstrap() {
 
   // Enable CORS
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:5173', 'https://squadlog.up.railway.app', 'https://squadlog-console.up.railway.app', 'https://squadcart-console.up.railway.app', 'https://squadcart-console.up.railway.app', 'https://karigoriongon-console.up.railway.app', 'https://karigoriongon-frontend.up.railway.app', 'https://karigoriongon.com', 'https://karigoriongon.com/sojibdotdev', 'https://console.squadcart.app'],
+    origin: ['http://localhost:3000', 'http://localhost:5173', 'https://squadlog.up.railway.app', 'https://squadlog-console.up.railway.app', 'https://squadcart-console.up.railway.app', 'https://squadcart-console.up.railway.app', 'https://karigoriongon-console.up.railway.app', 'https://karigoriongon-frontend.up.railway.app', 'https://karigoriongon.com', 'https://console.karigoriongon.com', 'https://karigoriongon.com/sojibdotdev', 'https://console.squadcart.app'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
     credentials: true,
