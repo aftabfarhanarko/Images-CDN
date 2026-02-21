@@ -2,10 +2,18 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import * as fs from 'fs';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Ensure uploads directory exists
+  const uploadsPath = join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsPath)) {
+    console.log(`Creating uploads directory at: ${uploadsPath}`);
+    fs.mkdirSync(uploadsPath, { recursive: true });
+  }
 
   // Enable CORS
   app.enableCors({
@@ -19,10 +27,12 @@ async function bootstrap() {
   app.useGlobalFilters(new GlobalExceptionFilter());
 
   // Serve static files from uploads directory
-  app.useStaticAssets(join(process.cwd(), 'uploads'), {
-    prefix: '/uploads/',
+  app.useStaticAssets(uploadsPath, {
+    prefix: '/uploads',
   });
 
-  await app.listen(process.env.PORT ?? 8000);
+  const port = process.env.PORT ?? 8000;
+  await app.listen(port);
+  console.log(`CDN is running on: ${await app.getUrl()}`);
 }
 bootstrap();
