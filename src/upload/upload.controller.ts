@@ -8,7 +8,6 @@ import {
   Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Request } from 'express';
 import { UploadService } from './upload.service';
 import { multerConfig } from './upload.service';
 import { StorageService } from '../common/services/storage.service';
@@ -25,7 +24,11 @@ export class UploadController {
   @Get('migrate-local')
   async migrateLocal() {
     const uploadsPath = join(process.cwd(), 'uploads');
-    const results = {
+    const results: {
+      success: string[];
+      failed: { key: string; error: string }[];
+      skipped: string[];
+    } = {
       success: [],
       failed: [],
       skipped: [],
@@ -65,7 +68,7 @@ export class UploadController {
         await this.storageService.uploadBuffer(buffer, key, contentType);
         results.success.push(key);
       } catch (err) {
-        results.failed.push({ key, error: err.message });
+        results.failed.push({ key, error: (err as any).message });
       }
     }
 
@@ -79,8 +82,8 @@ export class UploadController {
   @Post('image')
   @UseInterceptors(FileInterceptor('file', multerConfig))
   async uploadImage(
-    @UploadedFile() file: Express.Multer.File,
-    @Req() req: Request,
+    @UploadedFile() file: any,
+    @Req() req: any,
   ) {
     if (!file) {
       throw new BadRequestException('No file uploaded');

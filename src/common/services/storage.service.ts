@@ -12,8 +12,8 @@ export class StorageService {
       region: 'auto',
       endpoint: process.env.R2_ENDPOINT,
       credentials: {
-        accessKeyId: process.env.R2_ACCESS_KEY_ID,
-        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+        accessKeyId: process.env.R2_ACCESS_KEY_ID as string,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY as string,
       },
       forcePathStyle: true,
     });
@@ -35,7 +35,7 @@ export class StorageService {
     return process.env.R2_BUCKET_NAME;
   }
 
-  async uploadFile(file: Express.Multer.File, key: string): Promise<string> {
+  async uploadFile(file: any, key: string): Promise<string> {
     return this.uploadBuffer(file.buffer, key, file.mimetype);
   }
 
@@ -43,7 +43,7 @@ export class StorageService {
     const upload = new Upload({
       client: this.s3Client,
       params: {
-        Bucket: process.env.R2_BUCKET_NAME,
+        Bucket: process.env.R2_BUCKET_NAME as string,
         Key: key,
         Body: buffer,
         ContentType: contentType,
@@ -56,7 +56,7 @@ export class StorageService {
 
   async deleteFile(key: string): Promise<void> {
     const command = new DeleteObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME,
+      Bucket: process.env.R2_BUCKET_NAME as string,
       Key: key,
     });
 
