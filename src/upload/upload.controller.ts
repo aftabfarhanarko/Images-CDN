@@ -23,58 +23,80 @@ export class UploadController {
 
   @Get('migrate-local')
   async migrateLocal() {
-    const uploadsPath = join(process.cwd(), 'uploads');
-    const results: {
-      success: string[];
-      failed: { key: string; error: string }[];
-      skipped: string[];
-    } = {
+    console.log('Starting migration check...');
+    const cwd = process.cwd();
+    const possiblePaths = [
+      join(cwd, 'uploads'),
+      '/app/uploads',
+      './uploads'
+    ];
+    
+    console.log('Current working directory:', cwd);
+    
+    const results: any = {
       success: [],
       failed: [],
       skipped: [],
+      checkedPaths: [],
     };
 
-    if (!fs.existsSync(uploadsPath)) {
-      return { message: 'Uploads directory not found', path: uploadsPath };
-    }
-
-    const getAllFiles = (dir: string, fileList: string[] = []) => {
-      const files = fs.readdirSync(dir);
-      files.forEach((file) => {
-        const filePath = join(dir, file);
-        if (fs.statSync(filePath).isDirectory()) {
-          getAllFiles(filePath, fileList);
-        } else {
-          fileList.push(filePath);
-        }
-      });
-      return fileList;
-    };
-
-    const allFiles = getAllFiles(uploadsPath);
-
-    for (const filePath of allFiles) {
-      const relativePath = filePath.replace(process.cwd(), '');
-      const key = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
+    for (const uploadsPath of possiblePaths) {
+      results.checkedPaths.push(uploadsPath);
+      console.log(`Checking path: ${uploadsPath}`);
       
-      try {
-        const buffer = fs.readFileSync(filePath);
-        const ext = extname(filePath).toLowerCase();
-        let contentType = 'application/octet-stream';
-        if (ext === '.png') contentType = 'image/png';
-        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-        else if (ext === '.webp') contentType = 'image/webp';
-
-        await this.storageService.uploadBuffer(buffer, key, contentType);
-        results.success.push(key);
-      } catch (err) {
-        results.failed.push({ key, error: (err as any).message });
+      if (!fs.existsSync(uploadsPath)) {
+        console.log(`Path does not exist: ${uploadsPath}`);
+        continue;
       }
+
+      const getAllFiles = (dir: string, fileList: string[] = []) => {
+        try {
+          const files = fs.readdirSync(dir);
+          console.log(`Directory ${dir} contains ${files.length} items`);
+          files.forEach((file) => {
+            const filePath = join(dir, file);
+            if (fs.statSync(filePath).isDirectory()) {
+              getAllFiles(filePath, fileList);
+            } else {
+              fileList.push(filePath);
+            }
+          });
+        } catch (e) {
+          console.error(`Error reading directory ${dir}:`, e.message);
+        }
+        return fileList;
+      };
+
+      const allFiles = getAllFiles(uploadsPath);
+      console.log(`Found ${allFiles.length} total files in ${uploadsPath}`);
+
+      for (const filePath of allFiles) {
+        // Create key based on path relative to uploadsPath to keep structure
+        const relativeToUploads = filePath.replace(uploadsPath, '');
+        const key = `uploads${relativeToUploads.startsWith('/') ? '' : '/'}${relativeToUploads}`;
+        
+        try {
+          const buffer = fs.readFileSync(filePath);
+          const ext = extname(filePath).toLowerCase();
+          let contentType = 'application/octet-stream';
+          if (ext === '.png') contentType = 'image/png';
+          else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+          else if (ext === '.webp') contentType = 'image/webp';
+
+          await this.storageService.uploadBuffer(buffer, key, contentType);
+          results.success.push(key);
+        } catch (err) {
+          results.failed.push({ key, error: (err as any).message });
+        }
+      }
+      
+      // If we found files in one path, we stop
+      if (allFiles.length > 0) break;
     }
 
     return {
       message: 'Migration completed',
-      total: allFiles.length,
+      cwd,
       results,
     };
   }
