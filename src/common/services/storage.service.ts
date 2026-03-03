@@ -36,13 +36,17 @@ export class StorageService {
   }
 
   async uploadFile(file: Express.Multer.File, key: string): Promise<string> {
+    return this.uploadBuffer(file.buffer, key, file.mimetype);
+  }
+
+  async uploadBuffer(buffer: Buffer, key: string, contentType: string): Promise<string> {
     const upload = new Upload({
       client: this.s3Client,
       params: {
         Bucket: process.env.R2_BUCKET_NAME,
         Key: key,
-        Body: file.buffer,
-        ContentType: file.mimetype,
+        Body: buffer,
+        ContentType: contentType,
       },
     });
 

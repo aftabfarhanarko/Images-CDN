@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Get,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
@@ -11,7 +12,8 @@ import type { Request } from 'express';
 import { UploadService } from './upload.service';
 import { multerConfig } from './upload.service';
 import { StorageService } from '../common/services/storage.service';
-import { extname } from 'path';
+import { extname, join } from 'path';
+import * as fs from 'fs';
 
 @Controller('upload')
 export class UploadController {
@@ -19,6 +21,60 @@ export class UploadController {
     private readonly uploadService: UploadService,
     private readonly storageService: StorageService,
   ) {}
+
+  @Get('migrate-local')
+  async migrateLocal() {
+    const uploadsPath = join(process.cwd(), 'uploads');
+    const results = {
+      success: [],
+      failed: [],
+      skipped: [],
+    };
+
+    if (!fs.existsSync(uploadsPath)) {
+      return { message: 'Uploads directory not found', path: uploadsPath };
+    }
+
+    const getAllFiles = (dir: string, fileList: string[] = []) => {
+      const files = fs.readdirSync(dir);
+      files.forEach((file) => {
+        const filePath = join(dir, file);
+        if (fs.statSync(filePath).isDirectory()) {
+          getAllFiles(filePath, fileList);
+        } else {
+          fileList.push(filePath);
+        }
+      });
+      return fileList;
+    };
+
+    const allFiles = getAllFiles(uploadsPath);
+
+    for (const filePath of allFiles) {
+      const relativePath = filePath.replace(process.cwd(), '');
+      const key = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
+      
+      try {
+        const buffer = fs.readFileSync(filePath);
+        const ext = extname(filePath).toLowerCase();
+        let contentType = 'application/octet-stream';
+        if (ext === '.png') contentType = 'image/png';
+        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+        else if (ext === '.webp') contentType = 'image/webp';
+
+        await this.storageService.uploadBuffer(buffer, key, contentType);
+        results.success.push(key);
+      } catch (err) {
+        results.failed.push({ key, error: err.message });
+      }
+    }
+
+    return {
+      message: 'Migration completed',
+      total: allFiles.length,
+      results,
+    };
+  }
 
   @Post('image')
   @UseInterceptors(FileInterceptor('file', multerConfig))
