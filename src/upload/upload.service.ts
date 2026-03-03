@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import { extname } from 'path';
 
 const allowedMimeTypes = [
@@ -12,15 +12,7 @@ const allowedMimeTypes = [
 const allowedExtensions = ['.jpeg', '.jpg', '.png', '.webp'];
 
 export const multerConfig = {
-  storage: diskStorage({
-    destination: './uploads',
-    filename: (req, file, callback) => {
-      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-      const ext = extname(file.originalname);
-      const filename = `${uniqueSuffix}${ext}`;
-      callback(null, filename);
-    },
-  }),
+  storage: memoryStorage(),
   fileFilter: (req, file, callback) => {
     const ext = extname(file.originalname).toLowerCase();
     const isValidMimeType = allowedMimeTypes.includes(file.mimetype);

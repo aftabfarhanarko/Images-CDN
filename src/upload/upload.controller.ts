@@ -10,10 +10,15 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 import { UploadService } from './upload.service';
 import { multerConfig } from './upload.service';
+import { StorageService } from '../common/services/storage.service';
+import { extname } from 'path';
 
 @Controller('upload')
 export class UploadController {
-  constructor(private readonly uploadService: UploadService) {}
+  constructor(
+    private readonly uploadService: UploadService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @Post('image')
   @UseInterceptors(FileInterceptor('file', multerConfig))
@@ -25,18 +30,18 @@ export class UploadController {
       throw new BadRequestException('No file uploaded');
     }
 
-    // Get base URL from request
-    const protocol = req.protocol;
-    const host = req.get('host');
-    const baseUrl = `${protocol}://${host}`;
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const ext = extname(file.originalname);
+    const filename = `${uniqueSuffix}${ext}`;
+    const key = `uploads/${filename}`;
 
-    const publicUrl = this.uploadService.getPublicUrl(file.filename, baseUrl);
+    const publicUrl = await this.storageService.uploadFile(file, key);
 
     return {
       success: true,
-      message: 'Image uploaded successfully',
+      message: 'Image uploaded successfully to R2',
       url: publicUrl,
-      filename: file.filename,
+      filename: filename,
       originalName: file.originalname,
       size: file.size,
       mimetype: file.mimetype,
