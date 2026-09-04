@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Query,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
@@ -11,6 +12,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
 import { multerConfig } from './upload.service';
 import { StorageService } from '../common/services/storage.service';
+import { ImageService } from '../common/services/image.service';
 import { extname, join } from 'path';
 import * as fs from 'fs';
 
@@ -19,6 +21,7 @@ export class UploadController {
   constructor(
     private readonly uploadService: UploadService,
     private readonly storageService: StorageService,
+    private readonly imageService: ImageService,
   ) {}
 
   @Get('migrate-local')
@@ -28,7 +31,7 @@ export class UploadController {
     const possiblePaths = [
       join(cwd, 'uploads'),
       '/app/uploads',
-      './uploads'
+      './uploads',
     ];
     
     console.log('Current working directory:', cwd);
@@ -62,7 +65,7 @@ export class UploadController {
             }
           });
         } catch (e) {
-          console.error(`Error reading directory ${dir}:`, e.message);
+          console.error(`Error reading directory ${dir}:`, (e as any).message);
         }
         return fileList;
       };
@@ -71,7 +74,6 @@ export class UploadController {
       console.log(`Found ${allFiles.length} total files in ${uploadsPath}`);
 
       for (const filePath of allFiles) {
-        // Create key based on path relative to uploadsPath to keep structure
         const relativeToUploads = filePath.replace(uploadsPath, '');
         const key = `uploads${relativeToUploads.startsWith('/') ? '' : '/'}${relativeToUploads}`;
         
@@ -90,7 +92,6 @@ export class UploadController {
         }
       }
       
-      // If we found files in one path, we stop
       if (allFiles.length > 0) break;
     }
 
@@ -104,28 +105,66 @@ export class UploadController {
   @Post('image')
   @UseInterceptors(FileInterceptor('file', multerConfig))
   async uploadImage(
-    @UploadedFile() file: any,
-    @Req() req: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Query('w') width?: number,
+    @Query('h') height?: number,
+    @Query('q') quality?: number,
+    @Query('format') format?: 'webp' | 'jpeg' | 'png' | 'avif',
+    @Query('crop') crop?: string,
   ) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
 
+    const isImage = file.mimetype.startsWith('image/') && !file.mimetype.includes('svg');
+    
+    let bufferToUpload = file.buffer;
+    let targetFormat = extname(file.originalname).replace('.', '').toLowerCase();
+    let contentType = file.mimetype;
+    let optimizationStats: any = null;
+
+    // Automatic Image Optimization with Sharp
+    if (isImage) {
+      const processed = await this.imageService.processImage(file.buffer, {
+        width: width ? Number(width) : undefined,
+        height: height ? Number(height) : undefined,
+        quality: quality ? Number(quality) : 80,
+        format: format || 'webp',
+        smartCrop: crop === 'true' || crop === 'smart',
+      });
+
+      bufferToUpload = processed.buffer;
+      targetFormat = processed.format;
+      contentType = processed.mimeType;
+
+      optimizationStats = {
+        width: processed.width,
+        height: processed.height,
+        originalSize: processed.originalSize,
+        optimizedSize: processed.optimizedSize,
+        saved: processed.compressionRatio,
+      };
+    }
+
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const ext = extname(file.originalname);
-    const filename = `${uniqueSuffix}${ext}`;
+    const filename = `${uniqueSuffix}.${targetFormat}`;
     const key = `uploads/${filename}`;
 
-    const publicUrl = await this.storageService.uploadFile(file, key);
+    const publicUrl = await this.storageService.uploadBuffer(
+      bufferToUpload,
+      key,
+      contentType,
+    );
 
     return {
       success: true,
-      message: 'Image uploaded successfully to R2',
+      message: 'File processed & uploaded successfully to AI CDN',
       url: publicUrl,
       filename: filename,
       originalName: file.originalname,
-      size: file.size,
-      mimetype: file.mimetype,
+      size: bufferToUpload.length,
+      mimetype: contentType,
+      optimization: optimizationStats,
     };
   }
 }

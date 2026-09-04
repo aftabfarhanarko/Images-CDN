@@ -7,9 +7,12 @@ const allowedMimeTypes = [
   'image/jpg',
   'image/png',
   'image/webp',
+  'image/avif',
+  'image/gif',
+  'image/svg+xml',
 ];
 
-const allowedExtensions = ['.jpeg', '.jpg', '.png', '.webp'];
+const allowedExtensions = ['.jpeg', '.jpg', '.png', '.webp', '.avif', '.gif', '.svg'];
 
 export const multerConfig = {
   storage: memoryStorage(),
@@ -30,7 +33,7 @@ export const multerConfig = {
     }
   },
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 15 * 1024 * 1024, // 15MB limit
   },
 };
 
