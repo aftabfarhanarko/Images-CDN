@@ -12,6 +12,15 @@ export class AppController {
 
   @Get('health')
   healthCheck() {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+    return {
+      status: 'ok',
+      service: 'squadlog-cdn',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: process.uptime(),
+      memoryUsageMB: {
+        rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      },
+    };
   }
 }

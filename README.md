@@ -1,221 +1,176 @@
-# Image CDN Service
+# ⚡ SquadLog CDN (High-Performance Image & Asset CDN Service)
 
-A NestJS-based image CDN service that handles image uploads and serves them as static files. This service provides a simple API for uploading images and automatically generates public URLs for accessing them.
+A production-ready NestJS-based **Image Optimization & Asset CDN Service**. It processes, crops, compresses, and converts images on-the-fly using **Sharp**, uploads them to **Cloudflare R2** (or local storage fallback), and delivers them with high-performance HTTP browser caching.
 
-## Overview
+---
 
-This service allows you to:
-- Upload images (JPEG, JPG, PNG, WEBP)
-- Automatically validate file types and sizes
-- Generate unique filenames to prevent conflicts
-- Serve uploaded images as static files
-- Get public URLs for uploaded images
+## 💡 কীভাবে এই CDN কাজ করে? (How It Works)
 
-## How It Works
+```
+[ Client App / Frontend ]
+          │
+          │ 1. Upload File (FormData + Query Params)
+          ▼
+┌────────────────────────────────────────────────────────┐
+│  SquadLog CDN (NestJS Backend @ Port 8000)             │
+│                                                        │
+│  1. File Validation (Multer: max 15MB, PNG/JPG/WebP..) │
+│  2. Sharp Engine Processing:                           │
+│     - Resizing (width, height)                         │
+│     - Format conversion (WebP, AVIF, JPEG, PNG)        │
+│     - Compression & Smart Cropping                     │
+│  3. Storage Handler (StorageService):                  │
+│     - Cloudflare R2 Object Storage (if configured)     │
+│     - Local `/uploads` directory (fallback)            │
+└────────────────────────────────────────────────────────┘
+          │
+          │ 4. Returns Public CDN URL & Optimization Stats
+          ▼
+[ JSON Response with optimized image URL ]
+```
 
-### Architecture
+---
 
-The service is built with NestJS and consists of:
+## 🔥 Key Features
 
-1. **Upload Controller** (`src/upload/upload.controller.ts`)
-   - Handles POST requests to `/upload/image`
-   - Validates uploaded files
-   - Returns image metadata and public URL
+- 📸 **Automatic Image Optimization**: Converts uploaded images to WebP/AVIF format automatically for up to **70-90% file size reduction**.
+- 📐 **Dynamic Resizing & Smart Cropping**: Resize on upload via query parameters (`w`, `h`, `q`, `format`, `crop`).
+- ☁️ **Dual Storage Architecture**:
+  - **Cloudflare R2 / S3 Storage**: Primary choice for zero-bandwidth cost global CDN delivery.
+  - **Local Disk Fallback**: Automatically saves to `./uploads` if Cloudflare R2 credentials are not set.
+- ⚡ **Aggressive Browser Caching**: Serves static files with `Cache-Control: public, max-age=31536000, immutable`.
+- 🛡️ **Cross-Origin Resource Sharing (CORS)**: Pre-configured for approved domains (`rajseba.in`, `household-services-frontend-lc2h.vercel.app`, `ai-power-admin-console.vercel.app`, `localhost:3000`, etc.) and dynamic `.env` configuration.
+- 🏥 **Health Monitoring Endpoint**: `/health` endpoint providing uptime and RSS/Heap memory statistics.
 
-2. **Upload Service** (`src/upload/upload.service.ts`)
-   - Configures Multer for file handling
-   - Validates file types and sizes
-   - Generates unique filenames
-   - Constructs public URLs
+---
 
-3. **Main Application** (`src/main.ts`)
-   - Configures CORS for allowed origins
-   - Serves static files from `/uploads/` directory
-   - Starts the server on port 8000 (or PORT env variable)
+## 📡 API Endpoints
 
-### File Upload Flow
+### 1. Upload & Optimize Image (`POST /upload/image`)
 
-1. **Client sends POST request** to `/upload/image` with a file in the `file` field
-2. **Multer interceptor** processes the file using the configured settings
-3. **File validation** checks:
-   - MIME type (must be: `image/jpeg`, `image/jpg`, `image/png`, `image/webp`)
-   - File extension (must be: `.jpeg`, `.jpg`, `.png`, `.webp`)
-   - File size (maximum 10MB)
-4. **File storage** saves the file to `./uploads/` directory with a unique filename
-5. **Response** returns JSON with:
-   - Success status
-   - Public URL to access the image
-   - File metadata (filename, original name, size, MIME type)
+Upload an image and optionally apply real-time Sharp transformations.
 
-### File Naming
+- **Method**: `POST`
+- **Content-Type**: `multipart/form-data`
+- **Form Field Name**: `file`
 
-Files are automatically renamed to prevent conflicts:
-- Format: `{timestamp}-{randomNumber}.{extension}`
-- Example: `1768673800108-386916113.png`
-- This ensures unique filenames even if multiple files are uploaded simultaneously
+#### Optional Query Parameters:
+| Parameter | Type | Default | Description | Example |
+| :--- | :--- | :--- | :--- | :--- |
+| `w` | number | - | Target width in pixels | `?w=800` |
+| `h` | number | - | Target height in pixels | `?h=600` |
+| `q` | number | `80` | Compression quality (1-100) | `?q=85` |
+| `format` | string | `webp` | Target format (`webp`, `avif`, `jpeg`, `png`) | `?format=webp` |
+| `crop` | string | `false` | Smart focal crop to match width & height | `?crop=true` |
 
-### Static File Serving
+#### Example Request (cURL):
+```bash
+curl -X POST "http://localhost:8000/upload/image?w=800&q=80&format=webp" \
+  -F "file=@/path/to/my-photo.png"
+```
 
-Uploaded images are served as static files:
-- Base path: `/uploads/{filename}`
-- Example: `http://localhost:8000/uploads/1768673800108-386916113.png`
-- Files are accessible via GET requests without authentication
-
-## API Endpoints
-
-### POST `/upload/image`
-
-Upload an image file.
-
-**Request:**
-- Method: `POST`
-- Content-Type: `multipart/form-data`
-- Body: Form data with `file` field containing the image
-
-**Response (Success):**
+#### Example Response:
 ```json
 {
   "success": true,
-  "message": "Image uploaded successfully",
-  "url": "http://localhost:8000/uploads/1768673800108-386916113.png",
-  "filename": "1768673800108-386916113.png",
-  "originalName": "my-image.png",
-  "size": 245678,
-  "mimetype": "image/png"
+  "message": "File processed & uploaded successfully to AI CDN",
+  "url": "https://cdn.yourdomain.com/uploads/1768673800108-386916113.webp",
+  "filename": "1768673800108-386916113.webp",
+  "originalName": "my-photo.png",
+  "size": 42150,
+  "mimetype": "image/webp",
+  "optimization": {
+    "width": 800,
+    "height": 600,
+    "originalSize": 450200,
+    "optimizedSize": 42150,
+    "saved": "90.64%"
+  }
 }
 ```
 
-**Response (Error):**
+---
+
+### 2. Service Health Check (`GET /health`)
+
+Returns uptime and memory usage metrics.
+
+```bash
+curl http://localhost:8000/health
+```
+
+#### Response:
 ```json
 {
-  "statusCode": 400,
-  "message": "No file uploaded" // or "Invalid file type. Only .jpeg, .jpg, .png, .webp are allowed."
+  "status": "ok",
+  "service": "squadlog-cdn",
+  "timestamp": "2026-09-06T22:21:00.000Z",
+  "uptimeSeconds": 1420,
+  "memoryUsageMB": {
+    "rss": 54,
+    "heapUsed": 28
+  }
 }
 ```
 
-## Configuration
+---
 
-### Environment Variables
+## 🛠️ Usage Examples for Frontend
 
-- `PORT` (optional): Server port (default: 8000)
-- `BACKEND_URL` (optional): Base URL for generating public URLs (fallback if not provided in request)
+### JavaScript / React / Next.js
 
-### CORS Configuration
+```typescript
+const uploadImageToCDN = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
 
-The service allows requests from:
-- `http://localhost:3000`
-- `http://localhost:5173`
-- `https://squadlog.up.railway.app`
-- `https://squadlog-console.up.railway.app`
+  // Optional optimization parameters
+  const params = new URLSearchParams({
+    w: '1200',
+    q: '85',
+    format: 'webp',
+  });
 
-### File Restrictions
+  const response = await fetch(`https://cdn.yourdomain.com/upload/image?${params}`, {
+    method: 'POST',
+    body: formData,
+  });
 
-- **Allowed types**: JPEG, JPG, PNG, WEBP
-- **Maximum size**: 10MB
-- **Storage location**: `./uploads/` directory
+  const data = await response.json();
+  console.log('Optimized CDN Image URL:', data.url);
+  return data.url;
+};
+```
 
-## Usage Examples
+---
 
-### Using cURL
+## ⚙️ Environment Variables (`.env`)
+
+```env
+NODE_ENV=production
+PORT=8000
+
+# Base URL for public links
+BACKEND_URL=https://cdn.yourdomain.com
+
+# Allowed CORS Origins (comma-separated)
+ALLOWED_ORIGINS=https://rajseba.in,https://household-services-frontend-lc2h.vercel.app,https://ai-power-admin-console.vercel.app
+
+# Cloudflare R2 Configuration (Optional)
+R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=your_access_key_id
+R2_SECRET_ACCESS_KEY=your_secret_access_key
+R2_BUCKET_NAME=your_bucket_name
+R2_PUBLIC_DOMAIN=https://cdn-assets.yourdomain.com
+```
+
+---
+
+## 🚀 Hostinger Deployment
+
+For complete instructions on deploying to Hostinger (VPS with PM2 / Docker / Nginx or Hostinger hPanel Node.js Selector), please read [HOSTINGER_DEPLOYMENT.md](file:///home/aftab-farhan/projects/squadlog-cdn/HOSTINGER_DEPLOYMENT.md).
 
 ```bash
-curl -X POST http://localhost:8000/upload/image \
-  -F "file=@/path/to/your/image.png"
+# Start in production mode using PM2
+pm2 start ecosystem.config.js --env production
 ```
-
-### Using JavaScript (Fetch API)
-
-```javascript
-const formData = new FormData();
-formData.append('file', fileInput.files[0]);
-
-const response = await fetch('http://localhost:8000/upload/image', {
-  method: 'POST',
-  body: formData,
-});
-
-const data = await response.json();
-console.log('Image URL:', data.url);
-```
-
-### Using Axios
-
-```javascript
-import axios from 'axios';
-
-const formData = new FormData();
-formData.append('file', file);
-
-const response = await axios.post('http://localhost:8000/upload/image', formData, {
-  headers: {
-    'Content-Type': 'multipart/form-data',
-  },
-});
-
-console.log('Image URL:', response.data.url);
-```
-
-## Installation
-
-```bash
-# Install dependencies
-npm install
-
-# Build the project
-npm run build
-
-# Start in development mode
-npm run start:dev
-
-# Start in production mode
-npm run start:prod
-```
-
-## Project Structure
-
-```
-src/
-├── main.ts                 # Application entry point, CORS, static file serving
-├── app.module.ts           # Root application module
-├── app.controller.ts       # Root controller
-├── app.service.ts          # Root service
-└── upload/
-    ├── upload.module.ts    # Upload feature module
-    ├── upload.controller.ts # Upload endpoint controller
-    └── upload.service.ts   # Upload logic and Multer configuration
-```
-
-## Development
-
-```bash
-# Development mode with hot reload
-npm run start:dev
-
-# Debug mode
-npm run start:debug
-
-# Run tests
-npm run test
-
-# Run e2e tests
-npm run test:e2e
-
-# Lint code
-npm run lint
-```
-
-## Important Notes
-
-1. **File Storage**: Files are stored in the `./uploads/` directory. Make sure this directory exists or is created automatically.
-
-2. **Security**: Currently, the service serves files without authentication. Consider adding authentication/authorization for production use.
-
-3. **File Cleanup**: The service doesn't automatically delete old files. You may want to implement a cleanup mechanism for production.
-
-4. **CORS**: Update the CORS origins in `src/main.ts` if you need to allow additional domains.
-
-5. **File Size**: The 10MB limit can be adjusted in `src/upload/upload.service.ts` in the `multerConfig.limits.fileSize` property.
-
-## License
-
-UNLICENSED
