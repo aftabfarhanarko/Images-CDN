@@ -63,13 +63,13 @@ async function bootstrap() {
   // Apply global exception filter
   app.useGlobalFilters(new GlobalExceptionFilter());
 
-  // Serve static files from uploads directory with aggressive browser caching
+  // Serve static files from uploads directory with aggressive 5-year browser caching
   app.useStaticAssets(uploadsPath, {
     prefix: '/uploads',
-    maxAge: '1y',
+    maxAge: '5y',
     immutable: true,
     setHeaders: (res) => {
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Cache-Control', 'public, max-age=315360000, immutable');
     },
   });
 

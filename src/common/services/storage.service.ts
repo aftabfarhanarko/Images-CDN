@@ -70,7 +70,7 @@ export class StorageService {
           Key: key,
           Body: buffer,
           ContentType: contentType,
-          CacheControl: 'public, max-age=31536000, immutable',
+          CacheControl: 'public, max-age=315360000, immutable',
         },
       });
 
